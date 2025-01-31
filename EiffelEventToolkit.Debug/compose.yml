@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: "rabbitmq:3.11-management"
+    container_name: eiffelRabbitMQ
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ./config/rabbitmq/rabbitmq.conf
+        target: /etc/rabbitmq/rabbitmq.conf
+      - type: bind
+        source: ./config/rabbitmq/definitions.json
+        target: /etc/rabbitmq/definitions.json
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.5.0
+    container_name: eiffelLogstash
+    restart: unless-stopped
+    volumes:
+      - ./config/logstash/logstash.yml:/usr/share/logstash/config/logstash.yml
+      - ./config/logstash/pipelines.yml:/usr/share/logstash/config/pipelines.yml
+      - ./config/logstash/rabbitmq_eiffel.conf:/usr/share/logstash/rabbitmq_eiffel.conf

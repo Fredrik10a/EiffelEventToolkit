@@ -1,0 +1,4 @@
+---
+- pipeline.id: rabbitmq_eiffel
+  pipeline.workers: 1
+  path.config: "/usr/share/logstash/rabbitmq_eiffel.conf"

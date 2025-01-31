@@ -1,0 +1,44 @@
+# This workflow will build, test, and package a .NET project
+
+name: Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # GitHub-hosted runner
+
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET for .NET Standard 2.0 and .NET 6.0
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: |
+          6.0.x
+          2.1.x
+
+    - name: Restore dependencies for EiffelEventToolkit (.NET Standard 2.0)
+      working-directory: ./EiffelEventToolkit
+      run: dotnet restore
+
+    - name: Build EiffelEventToolkit (.NET Standard 2.0)
+      working-directory: ./EiffelEventToolkit
+      run: dotnet build --no-restore --configuration Release
+
+    - name: Restore dependencies for EiffelEventToolkit.Debug (.NET 6.0)
+      working-directory: ./EiffelEventToolkit.Debug
+      run: dotnet restore
+
+    - name: Build EiffelEventToolkit.Debug (.NET 6.0)
+      working-directory: ./EiffelEventToolkit.Debug
+      run: dotnet build --no-restore --configuration Release
+
+    - name: Pack EiffelEventToolkit (.NET Standard 2.0)
+      working-directory: ./EiffelEventToolkit
+      run: dotnet pack --no-build --configuration Release --output ./artifacts

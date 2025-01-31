@@ -1,0 +1,85 @@
+{
+    "rabbit_version": "3.11.3",
+    "rabbitmq_version": "3.11.3",
+    "product_name": "RabbitMQ",
+    "product_version": "3.11.3",
+    "users": [
+        {
+            "name": "guest",
+            "password_hash": "sSOU+3JlOmYjQOegtw/+r2aaiuNNic2wjNN7kUkHk6radFhQ",
+            "hashing_algorithm": "rabbit_password_hashing_sha256",
+            "tags": [
+                "administrator"
+            ],
+            "limits": {}
+        }
+    ],
+    "vhosts": [
+        {
+            "name": "/"
+        },
+        {
+            "name": "Eiffel"
+        }
+    ],
+    "permissions": [
+        {
+            "user": "guest",
+            "vhost": "Eiffel",
+            "configure": ".*",
+            "write": ".*",
+            "read": ".*"
+        },
+        {
+            "user": "guest",
+            "vhost": "/",
+            "configure": ".*",
+            "write": ".*",
+            "read": ".*"
+        }
+    ],
+    "topic_permissions": [],
+    "parameters": [],
+    "global_parameters": [
+        {
+            "name": "internal_cluster_id",
+            "value": "rabbitmq-cluster-id-hHwO6i1GDJHpl4GxNcTFJQ"
+        }
+    ],
+    "policies": [],
+    "queues": [
+      {
+        "name": "mq.eiffel-event-toolkit",
+        "vhost": "Eiffel",
+        "durable": true,
+        "auto_delete": false,
+        "arguments": {
+          "owner": "",
+          "x-queue-type": "classic"
+        }
+      }
+    ],
+    "exchanges": [
+      {
+        "name": "mx.eiffel",
+        "vhost": "Eiffel",
+        "type": "topic",
+        "durable": true,
+        "auto_delete": false,
+        "internal": false,
+        "arguments": {
+          "owner": ""
+        }
+      }
+    ],
+    "bindings": [
+      {
+        "source": "mx.eiffel",
+        "vhost": "Eiffel",
+        "destination": "mq.eiffel-event-toolkit",
+        "destination_type": "queue",
+        "routing_key": "eiffel.#",
+        "arguments": {}
+      }
+    ]
+}

@@ -1,0 +1,14 @@
+{
+  "profiles": {
+    "EiffelEventToolkit.local": {
+      "commandName": "Project"
+    },
+    "EiffelEventToolkit.QA": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "ENVIRONMENT": "QA"
+      },
+      "remoteDebugEnabled": false
+    }
+  }
+}
