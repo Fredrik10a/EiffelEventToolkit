@@ -266,7 +266,7 @@ This could be done in many ways, but this is an example of how to setup the Eiff
 ```csharp
     using Eiffel;
 
-    ... others ...
+    // ...
 
     builder.Services.AddEiffelEventToolkitServices(builder.Configuration); // Register EiffelEventToolkit services
     builder.Services.AddScoped<IRoutingKeyTable, RoutingKeyTable>();
@@ -280,6 +280,7 @@ This could be done in many ways, but this is an example of how to setup the Eiff
         );
     });
     builder.Services.AddScoped<TestSuiteStarted>();
+    // ... others event types like builder.Services.AddScoped<TestSuiteStarted>(); ...
     builder.Services.AddScoped<IEventCreator>(sp => new EventCreator(
         sp.GetRequiredService<TestSuiteStarted>(),
         ...
@@ -287,12 +288,145 @@ This could be done in many ways, but this is an example of how to setup the Eiff
     builder.Services.AddScoped<IEiffelManager>(sp =>
     {
         return new EiffelManager(sp.GetRequiredService<IEventCreator>(), sp.GetRequiredService<EiffelEventToolkit>(), sp.GetRequiredService<ILogger<EiffelManager>>());
-        ...
+        // ...
     });
-    ... others ...
+
+    // ...
 ```
 
-##### misc
+##### EiffelManager.cs
+```csharp
+using Eiffel; // for the EiffelEventToolkit
+// NEEDS TO MATCH THE USED ONES IN EACH CREATOR
+using Eiffel.Models.EiffelTestSuiteStartedEvent.V3_4_0;
+
+namespace Eiffel
+{
+    public class EiffelManager : IEiffelManager
+    {
+        private readonly ILogger<IEiffelManager> _logger;
+        private readonly IEventCreator _eventCreator;
+        private readonly EiffelEventToolkit _eiffelEventToolkit;
+        private readonly string _eiffelRabbitMQExchange = "mx.eiffel"; // This is the RabbitMQ exchange name, used by Eiffel Event Toolkit!
+
+        /* -------------------------------------------------------------------------------------------- */
+        // Manager constructor to initialize the EiffelManager with the required dependencies (DI)
+        /* -------------------------------------------------------------------------------------------- */
+        public EiffelManager(IEventCreator eventCreator, EiffelEventToolkit eiffelEventToolkit, ILogger<IEiffelManager> logger)
+        {
+            _eventCreator = eventCreator;
+            _eiffelEventToolkit = eiffelEventToolkit;
+            _logger = logger;
+        }
+
+        /* -------------------------------------------------------------------------------------------- */
+        // Entry point to start the Eiffel event creation process
+        /* -------------------------------------------------------------------------------------------- */
+        public async Task<IResult> processEiffel([MY_TYPE] input)
+        {
+            ... Some logic to manage the input ...
+            ... Other events before the TestSuiteStarted event ...
+
+            // TestSuiteStarted event is created to mark the start of the test suite
+            var ([A], [B]) = await TestSuiteStarted(input);
+
+            ... Other events after the TestSuiteStarted event ...
+        }
+
+        /* -------------------------------------------------------------------------------------------- */
+        // Manager methods to create Eiffel events
+        // These methods are called to prepare the data for each EventCreator instance.
+        /* -------------------------------------------------------------------------------------------- */
+        
+        ... One of many methods to create an event object ...
+        
+        private async Task<(A, B)> TestSuiteStarted([TYPE] input)
+        {
+            // Any object can be passed as data  
+            var data = new Dictionary<string, string>
+            {
+                { "A", "ABC1" },
+                { "B", "ABC2" },
+            };
+            var eventRecord = await _eventCreator.TestSuiteStarted(data);
+
+            await PublishEvent(eventRecord);
+        }
+
+        /* -------------------------------------------------------------------------------------------- */
+        // Wrapper for publishing Eiffel events to RabbitMQ
+        /* -------------------------------------------------------------------------------------------- */
+        private async Task PublishEvent(EiffelDeliveryRecord eventRecord)
+        {
+            if (eventRecord != null)
+            {
+                // This is the Entrypoint to Eiffel Event Toolkit to publish the event to RabbitMQ!
+                (bool verdict, string message) = await _eiffelEventToolkit.PublishEiffelEventAsync(eventRecord.Delivery, _eiffelRabbitMQExchange, eventRecord.RoutingKey);
+
+                if (verdict)
+                {
+                    _logger.LogInformation("PublishEvent: {message}", message);
+                }
+                else
+                {
+                    _logger.LogError("PublishEvent: {message}", message);
+                }
+            }
+        }
+    }
+}
+```
+
+##### EventCreator.cs
+```csharp
+using Eiffel.Interfaces;
+
+namespace Eiffel
+{
+    public class EventCreator : IEventCreator
+    {
+        private readonly ICreateEvent _testSuiteStarted;
+        ... others ...
+
+        public EventCreator(
+            ICreateEvent testSuiteStarted,
+            ... others ...
+            )
+        {
+            _testSuiteStarted = testSuiteStarted;
+            ... others ...
+        }
+
+        ... others ...
+        public Task<EiffelDeliveryRecord> TestSuiteStarted(object data) => CreateEvent(_testSuiteStarted, data);
+        ... others ...
+
+        private async Task<EiffelDeliveryRecord> CreateEvent(ICreateEvent eventCreator, object data = null)
+        {
+            try
+            {
+                return await eventCreator.CreateEvent(data);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in {eventCreator.GetType().Name}: {ex.Message}");
+                return new EiffelDeliveryRecord(null, string.Empty);
+            }
+        }
+    }
+}
+```
+
+##### Misc
+
+##### EiffelDeliveryRecord.cs
+```csharp
+namespace Eiffel.Events.misc
+{
+    public record EiffelCommonSettings(string sourceName, string sourceURI);
+}
+```
+
 ###### BaseCreateEvent.cs
 ```csharp
 using Eiffel.Interfaces;
@@ -403,63 +537,6 @@ namespace Eiffel.Events.misc
 }
 ```
 
-#### Interfaces
-
-##### EiffelDeliveryRecord.cs
-```csharp
-namespace Eiffel.Events.misc
-{
-    public record EiffelCommonSettings(string sourceName, string sourceURI);
-}
-```
-
-##### ICreateEvent.cs
-```csharp
-namespace Eiffel.Interfaces
-{
-    public interface ICreateEvent
-    {
-        Task<EiffelDeliveryRecord> CreateEvent(object data);
-    }
-}
-```
-
-##### IEventCreator.cs
-```csharp
-namespace Eiffel.Interfaces
-{
-    public interface IEventCreator
-    {
-        Task<EiffelDeliveryRecord> ActivityTriggered();
-
-        Task<EiffelDeliveryRecord> ActivityStarted(object data);
-
-        Task<EiffelDeliveryRecord> ActivityFinished(object data);
-
-        Task<EiffelDeliveryRecord> TestSuiteStarted(object data);
-
-        Task<EiffelDeliveryRecord> TestCaseTriggered(object data);
-
-        Task<EiffelDeliveryRecord> TestCaseStarted(object data);
-
-        Task<EiffelDeliveryRecord> TestCaseFinished(object data);
-
-        Task<EiffelDeliveryRecord> TestSuiteFinished(object data);
-    }
-}
-```
-
-##### IRoutingKeyTable.cs
-```csharp
-namespace Eiffel.Interfaces
-{
-    public interface IRoutingKeyTable
-    {
-        public string GetRoutingKey(string eventType);
-    }
-}
-```
-
 ##### TestSuiteStarted.cs
 This is an example of how to create an event object using the factory and builder pattern.
 More events can be implemented using the same pattern.
@@ -508,147 +585,51 @@ namespace Eiffel.Events
 }
 ```
 
-##### EiffelManager.cs
+#### Interfaces
+
+##### ICreateEvent.cs
 ```csharp
-using Eiffel; // for the EiffelEventToolkit
-// NEEDS TO MATCH THE USED ONES IN EACH CREATOR
-using Eiffel.Models.EiffelTestSuiteStartedEvent.V3_4_0;
-
-namespace Eiffel
+namespace Eiffel.Interfaces
 {
-    public class EiffelManager : IEiffelManager
+    public interface ICreateEvent
     {
-        private readonly ILogger<IEiffelManager> _logger;
-        private readonly IEventCreator _eventCreator;
-        private readonly EiffelEventToolkit _eiffelEventToolkit;
-        private readonly string _eiffelRabbitMQExchange = "mx.eiffel"; // This is the RabbitMQ exchange name, used by Eiffel Event Toolkit!
-
-        /* -------------------------------------------------------------------------------------------- */
-        // Manager constructor to initialize the EiffelManager with the required dependencies (DI)
-        /* -------------------------------------------------------------------------------------------- */
-        public EiffelManager(IEventCreator eventCreator, EiffelEventToolkit eiffelEventToolkit, ILogger<IEiffelManager> logger)
-        {
-            _eventCreator = eventCreator;
-            _eiffelEventToolkit = eiffelEventToolkit;
-            _logger = logger;
-        }
-
-        /* -------------------------------------------------------------------------------------------- */
-        // Entry point to start the Eiffel event creation process
-        /* -------------------------------------------------------------------------------------------- */
-        public async Task<IResult> processEiffel([MY_TYPE] input)
-        {
-            ... Some logic to manage the input ...
-            ... Other events before the TestSuiteStarted event ...
-
-            // TestSuiteStarted event is created to mark the start of the test suite
-            var ([A], [B]) = await TestSuiteStarted(input);
-
-            ... Other events after the TestSuiteStarted event ...
-        }
-
-        /* -------------------------------------------------------------------------------------------- */
-        // Manager methods to create Eiffel events
-        // These methods are called to prepare the data for each EventCreator instance.
-        /* -------------------------------------------------------------------------------------------- */
-        
-        ... One of many methods to create an event object ...
-        
-        private async Task<(A, B)> TestSuiteStarted([TYPE] input)
-        {
-            // Any object can be passed as data  
-            var data = new Dictionary<string, string>
-            {
-                { "A", "ABC1" },
-                { "B", "ABC2" },
-            };
-            var eventRecord = await _eventCreator.TestSuiteStarted(data);
-
-            await PublishEvent(eventRecord);
-        }
-
-        /* -------------------------------------------------------------------------------------------- */
-        // Wrapper for publishing Eiffel events to RabbitMQ
-        /* -------------------------------------------------------------------------------------------- */
-        private async Task PublishEvent(EiffelDeliveryRecord eventRecord)
-        {
-            if (eventRecord != null)
-            {
-                // This is the Entrypoint to Eiffel Event Toolkit to publish the event to RabbitMQ!
-                (bool verdict, string message) = await _eiffelEventToolkit.PublishEiffelEventAsync(eventRecord.Delivery, _eiffelRabbitMQExchange, eventRecord.RoutingKey);
-
-                if (verdict)
-                {
-                    _logger.LogInformation("PublishEvent: {message}", message);
-                }
-                else
-                {
-                    _logger.LogError("PublishEvent: {message}", message);
-                }
-            }
-        }
+        Task<EiffelDeliveryRecord> CreateEvent(object data);
     }
 }
 ```
 
-##### EventCreator.cs
+##### IEventCreator.cs
 ```csharp
-using Eiffel.Interfaces;
-
-namespace Eiffel
+namespace Eiffel.Interfaces
 {
-    public class EventCreator : IEventCreator
+    public interface IEventCreator
     {
-        private readonly ICreateEvent _activityTriggered;
-        private readonly ICreateEvent _activityStarted;
-        private readonly ICreateEvent _activityFinished;
-        private readonly ICreateEvent _testSuiteStarted;
-        private readonly ICreateEvent _testCaseTriggered;
-        private readonly ICreateEvent _testCaseStarted;
-        private readonly ICreateEvent _testCaseFinished;
-        private readonly ICreateEvent _testSuiteFinished;
+        Task<EiffelDeliveryRecord> ActivityTriggered();
 
-        public EventCreator(
-            ICreateEvent activityTriggered,
-            ICreateEvent activityStarted,
-            ICreateEvent activityFinished,
-            ICreateEvent testSuiteStarted,
-            ICreateEvent testCaseTriggered,
-            ICreateEvent testCaseStarted,
-            ICreateEvent testCaseFinished,
-            ICreateEvent testSuiteFinished)
-        {
-            _activityTriggered = activityTriggered;
-            _activityStarted = activityStarted;
-            _activityFinished = activityFinished;
-            _testSuiteStarted = testSuiteStarted;
-            _testCaseTriggered = testCaseTriggered;
-            _testCaseStarted = testCaseStarted;
-            _testCaseFinished = testCaseFinished;
-            _testSuiteFinished = testSuiteFinished;
-        }
+        Task<EiffelDeliveryRecord> ActivityStarted(object data);
 
-        public Task<EiffelDeliveryRecord> ActivityTriggered() => CreateEvent(_activityTriggered, null);
-        public Task<EiffelDeliveryRecord> ActivityStarted(object data) => CreateEvent(_activityStarted, data);
-        public Task<EiffelDeliveryRecord> ActivityFinished(object data) => CreateEvent(_activityFinished, data);
-        public Task<EiffelDeliveryRecord> TestSuiteStarted(object data) => CreateEvent(_testSuiteStarted, data);
-        public Task<EiffelDeliveryRecord> TestCaseTriggered(object data) => CreateEvent(_testCaseTriggered, data);
-        public Task<EiffelDeliveryRecord> TestCaseStarted(object data) => CreateEvent(_testCaseStarted, data);
-        public Task<EiffelDeliveryRecord> TestCaseFinished(object data) => CreateEvent(_testCaseFinished, data);
-        public Task<EiffelDeliveryRecord> TestSuiteFinished(object data) => CreateEvent(_testSuiteFinished, data);
+        Task<EiffelDeliveryRecord> ActivityFinished(object data);
 
-        private async Task<EiffelDeliveryRecord> CreateEvent(ICreateEvent eventCreator, object data = null)
-        {
-            try
-            {
-                return await eventCreator.CreateEvent(data);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in {eventCreator.GetType().Name}: {ex.Message}");
-                return new EiffelDeliveryRecord(null, string.Empty);
-            }
-        }
+        Task<EiffelDeliveryRecord> TestSuiteStarted(object data);
+
+        Task<EiffelDeliveryRecord> TestCaseTriggered(object data);
+
+        Task<EiffelDeliveryRecord> TestCaseStarted(object data);
+
+        Task<EiffelDeliveryRecord> TestCaseFinished(object data);
+
+        Task<EiffelDeliveryRecord> TestSuiteFinished(object data);
+    }
+}
+```
+
+##### IRoutingKeyTable.cs
+```csharp
+namespace Eiffel.Interfaces
+{
+    public interface IRoutingKeyTable
+    {
+        public string GetRoutingKey(string eventType);
     }
 }
 ```

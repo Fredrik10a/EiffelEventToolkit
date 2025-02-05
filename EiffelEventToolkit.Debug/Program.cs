@@ -40,7 +40,6 @@ class Program
         services.AddLogging(logging =>
         {
             logging.ClearProviders();
-            logging.AddConsole();
         });
 
         // This will register all the services needed for the EiffelEventToolkit.
