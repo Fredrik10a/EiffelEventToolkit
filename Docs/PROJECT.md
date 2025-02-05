@@ -1,7 +1,7 @@
 # Solution Structure
 
 **EiffelEventToolkit**: The main `EiffelEventToolkit` project.
-- **/Interfaces**: Interface definitions for distributors contracts.
+- **/Interfaces**: Interface definitions for distributor contracts.
 - **/Models**: The Eiffel C# .NET  models.
 - **/Schemas**: Json schemas
 - **/Services**: Provides service implementation containing the core business logic for `EiffelEventToolkit`.
