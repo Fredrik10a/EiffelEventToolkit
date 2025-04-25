@@ -11,6 +11,7 @@ namespace Eiffel.Services.RabbitMQ
         private readonly ConnectionFactory _connectionFactory;
         private IConnection _connection;
         private bool _disposed;
+        private bool _isReconnecting = false;
         private readonly object _lock = new object();
 
         public RabbitMqConnectionManager(ConnectionFactory connectionFactory)
@@ -32,6 +33,12 @@ namespace Eiffel.Services.RabbitMQ
                 {
                     Connect();
                 }
+
+                if (_connection == null || !_connection.IsOpen)
+                {
+                    throw new InvalidOperationException("Cannot create channel: RabbitMQ connection is not established.");
+                }
+
                 return _connection.CreateModel();
             }
         }
@@ -54,7 +61,7 @@ namespace Eiffel.Services.RabbitMQ
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Failed to connect to RabbitMQ: {ex.Message}");
-                    _ = ReconnectAsync(); // fire-and-forget
+                    _ = ReconnectAsync();
                 }
             }
         }
@@ -67,32 +74,90 @@ namespace Eiffel.Services.RabbitMQ
 
         private async Task ReconnectAsync()
         {
-            int delay = 10000; // Start with 10 seconds
-            const int maxDelay = 240000; // 4 minutes = 240,000 ms
-            while (!_cts.IsCancellationRequested)
+            lock (_lock)
             {
-                try
+                if (_isReconnecting)
+                    return; // reconnect-loop is already in progress
+
+                _isReconnecting = true;
+            }
+
+            try
+            {
+                int delay = 10000; // Start with 10 seconds
+                const int maxDelay = 300000; // 5 minutes
+                const int maxRetries = 600; // Max number of retries
+                int retryCount = 0;
+
+                while (!_cts.IsCancellationRequested)
                 {
-                    Connect(); // Try to connect
-                    if (_connection?.IsOpen == true)
+                    if (_disposed)
+                        break;
+
+                    retryCount++;
+
+                    if (retryCount > maxRetries)
                     {
-                        Console.WriteLine("Reconnected to RabbitMQ.");
-                        break; // stop retrying
+                        Console.WriteLine($"[Retry #{retryCount}] Maximum retries ({maxRetries}) reached. Stopping reconnect attempts.");
+                        break;
                     }
-                }
-                catch
-                {
-                    Console.WriteLine($"Retrying RabbitMQ connection in {delay / 1000} seconds...");
+
+                    bool shouldLog = false;
+
+                    if (retryCount <= 10)
+                    {
+                        shouldLog = true; // Log every retry for the first 10 attempts
+                    }
+                    else if (retryCount <= 49)
+                    {
+                        shouldLog = retryCount % 5 == 0; // Log every 5 retries between 11 and 49
+                    }
+                    else
+                    {
+                        shouldLog = retryCount % 10 == 0; // Log every 10 retries after 50
+                    }
+
+                    if (shouldLog)
+                    {
+                        Console.WriteLine($"[Retry #{retryCount}] Attempting to reconnect to RabbitMQ...");
+                    }
+
+                    try
+                    {
+                        Connect(); // Try to connect
+
+                        if (_connection?.IsOpen == true)
+                        {
+                            Console.WriteLine($"[Retry #{retryCount}] Successfully reconnected to RabbitMQ!");
+                            break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        if (shouldLog)
+                        {
+                            Console.WriteLine($"[Retry #{retryCount}] Failed to connect: {ex.Message}");
+                            Console.WriteLine($"[Retry #{retryCount}] Waiting {delay / 1000} seconds before next retry...");
+                        }
+                    }
+
                     try
                     {
                         await Task.Delay(delay, _cts.Token);
                     }
                     catch (TaskCanceledException)
                     {
-                        // Cancel requested — exit early
-                        break;
+                        break; // Exited cleanly
                     }
-                    delay = Math.Min(maxDelay, delay * 2); // Exponential backoff, up to 4 mins
+
+                    delay = Math.Min(maxDelay, delay * 2); // Exponential backoff
+                }
+            }
+            finally
+            {
+                lock (_lock)
+                {
+                    _isReconnecting = false;
                 }
             }
         }
