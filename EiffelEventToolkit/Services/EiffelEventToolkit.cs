@@ -47,8 +47,7 @@ namespace Eiffel
 
             try
             {
-                var message = SerializeModel(data);
-                return await _rabbitMQDistributor.ProcessEiffelMessageAsync(message, exchange, routingKey);
+                return await _rabbitMQDistributor.ProcessEiffelMessageAsync(data, exchange, routingKey);
             }
             catch (Exception ex)
             {
