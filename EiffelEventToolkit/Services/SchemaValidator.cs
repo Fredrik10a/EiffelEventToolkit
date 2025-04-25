@@ -4,19 +4,19 @@ using NJsonSchema;
 using System;
 using System.IO;
 using System.Reflection;
+using System.Threading.Tasks;
 
 namespace Eiffel.Services.Validation
 {
     public class SchemaValidator
     {
-        public (bool Success, string Message) Validate(object message)
+        public async Task<(bool Success, string Message)> ValidateAsync(object message)
         {
             bool success = false;
             string resultMessage = "Message failed to validate against schema.";
 
             try
             {
-                // Serialize the message to JSON and extract type and version
                 var messageJson = JsonConvert.SerializeObject(message);
                 var messageObject = JsonConvert.DeserializeObject<JObject>(messageJson);
                 var type = messageObject["meta"]?["type"]?.ToString();
@@ -28,15 +28,12 @@ namespace Eiffel.Services.Validation
                 }
 
                 var schemaResourceName = $"Schemas.{type}.{version}.json";
-
-                // Attempt to load the schema as an embedded resource
-                var schema = LoadSchemaFromEmbeddedResource(schemaResourceName);
+                var schema = await LoadSchemaFromEmbeddedResourceAsync(schemaResourceName);
                 if (schema == null)
                 {
                     return (false, $"Schema not found in embedded resources: {schemaResourceName}");
                 }
 
-                // Validate the message against the loaded schema
                 var validationErrors = schema.Validate(messageJson);
                 if (validationErrors.Count == 0)
                 {
@@ -60,22 +57,21 @@ namespace Eiffel.Services.Validation
             return (success, resultMessage);
         }
 
-        private JsonSchema LoadSchemaFromEmbeddedResource(string resourceName)
+        private async Task<JsonSchema> LoadSchemaFromEmbeddedResourceAsync(string resourceName)
         {
             var assembly = Assembly.GetExecutingAssembly();
-            var resourceFullName = $"{assembly.GetName().Name}.{resourceName}"; // Build the full resource name
+            var resourceFullName = $"{assembly.GetName().Name}.{resourceName}";
 
             // Example: EiffelEventToolkit.Schemas.EiffelTestCaseFinishedEvent.2.0.0.json
-            using (var stream = assembly.GetManifestResourceStream(resourceFullName))
-            {
-                if (stream == null)
-                    return null;
+            var stream = assembly.GetManifestResourceStream(resourceFullName);
+            if (stream == null)
+                return null;
 
-                using (var reader = new StreamReader(stream))
-                {
-                    var schemaJson = reader.ReadToEnd();
-                    return JsonSchema.FromJsonAsync(schemaJson).Result;
-                }
+            using (stream)
+            using (var reader = new StreamReader(stream))
+            {
+                var schemaJson = await reader.ReadToEndAsync();
+                return await JsonSchema.FromJsonAsync(schemaJson);
             }
         }
     }

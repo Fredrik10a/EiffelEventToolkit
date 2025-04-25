@@ -1,17 +1,19 @@
 # Solution Structure
 
-**EiffelEventToolkit**: The main `EiffelEventToolkit` project.
-- **/Interfaces**: Interface definitions for distributor contracts.
-- **/Models**: The Eiffel C# .NET  models.
-- **/Schemas**: Json schemas
-- **/Services**: Provides service implementation containing the core business logic for `EiffelEventToolkit`.
-- **/Services/Distributors**: Types of distribution methods.
-- **/Services/Distributors/Models**: Custom Models used upon managing an endpoint.
-- **/Services/RabbitMQ**: The RabbitMQ connector.
+This solution is organized into multiple projects to separate concerns like core functionality, testing, and tooling.
 
-**EiffelEventToolkit.Debug**: A console application designed for testing and debugging the main `EiffelEventToolkit` project.
-- **/config**: Configurations for the debug/test environment for Docker using the console app.
+**EiffelEventToolkit**: The main library project.
+- **/Interfaces**: Interface definitions for distribution contracts.
+- **/Models**: C# .NET models representing Eiffel events.
+- **/Schemas**: Embedded JSON schema definitions for validation.
+- **/Services**: Core service implementations for EiffelEventToolkit.
+- **/Services/Distributors**: Distribution logic for RabbitMQ and GraphQL.
+- **/Services/Distributors/Models**: Custom models used internally when interacting with endpoints.
+- **/Services/RabbitMQ**: RabbitMQ connection management.
 
-**EiffelEventToolkit.Test**: NuUnit test project
+**EiffelEventToolkit.Debug**: A console application designed for testing and debugging the EiffelEventToolkit functionality.
+- **/config**: Configuration files and Docker setup for local debugging.
 
-**EventModelGenerator**: Generates C# Model types for the EiffelEventToolkit project using the Json Schema definitions
+**EiffelEventToolkit.Test**: NUnit-based unit test project.
+
+**EventModelGenerator**: A separate tool that generates C# models for EiffelEventToolkit based on JSON schemas.

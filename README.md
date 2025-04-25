@@ -1,21 +1,21 @@
 # Eiffel Event Toolkit
 
-The **Eiffel Event Toolkit** is a .NET Standard 2.0 library designed to create, manage, and publish messages that adhere to the [Eiffel Protocol](https://github.com/eiffel-community). This library simplifies message creation and publishing according to the Eiffel messaging standard, primarily utilizing RabbitMQ for message transportation.
+The **Eiffel Event Toolkit** is a .NET Standard 2.0 library designed to create, manage, validate, and distribute messages that adhere to the [Eiffel Protocol](https://github.com/eiffel-community).  
+It simplifies message handling according to the Eiffel standard, using RabbitMQ or GraphQL for communication.
 
-## Table of Contents
+## Table of contents
 
 ### Users
 - [How to use](./EiffelEventToolkit/README.md)
 
 ### Contributors
-
-- [Project](./Docs/PROJECT.md)
-- [Debug Guide](./Docs/DEBUG.md)
+- [Project overview](./Docs/PROJECT.md)
+- [Debug guide](./Docs/DEBUG.md)
 - [License](./Docs/LICENSE.txt)
 
 ## Features
 
-- Create and define **Eiffel** Event Messages from .NET Models templates.
-- Validation of Event messages before publish.
-- Publish Messages to a RabbitMQ bus and read the output.
-- Publish Messages to the GraphQL API and read the output.
+- Create and manage **Eiffel** event messages using strongly-typed .NET model templates.
+- Validate event messages against official JSON schemas before publishing.
+- Publish events to a RabbitMQ bus.
+- Query and publish events using a GraphQL API.

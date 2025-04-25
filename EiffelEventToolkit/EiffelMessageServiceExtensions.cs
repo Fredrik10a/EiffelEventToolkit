@@ -17,33 +17,42 @@ namespace Eiffel
             try
             {
                 var eiffelToolkitConfig = configuration.GetSection("EiffelToolkit");
-                // Determine the connect target (RabbitMQ, GraphQL, or ALL)
+                /*
+                 * Determine the connect target (RabbitMQ, GraphQL, ALL)
+                 * NOTE: Empty toolkitTarget will setup EiffelEventToolkit with no distributors!
+                 * This to use the EiffelEventToolkit as a Eiffel .NET Model source and schemaValidator.
+                 */
                 var toolkitTarget = Environment.GetEnvironmentVariable("EIFFEL_CONNECT_TARGET") ?? eiffelToolkitConfig.GetValue<string>("Target");
 
                 services.AddSingleton<SchemaValidator>();
 
-                if (string.IsNullOrEmpty(toolkitTarget))
+                switch (toolkitTarget?.ToLowerInvariant())
                 {
-                    throw new InvalidOperationException("Connecting target must be specified either in configuration or as an environment variable.");
-                }
-
-                if (toolkitTarget == "RabbitMQ" || toolkitTarget == "ALL")
-                {
-                    ConfigureRabbitMQ(services, eiffelToolkitConfig);
-                }
-
-                if (toolkitTarget == "GraphQL" || toolkitTarget == "ALL")
-                {
-                    ConfigureGraphQL(services, eiffelToolkitConfig);
+                    case "rabbitmq":
+                        ConfigureRabbitMQ(services, eiffelToolkitConfig);
+                        break;
+                    case "graphql":
+                        ConfigureGraphQL(services, eiffelToolkitConfig);
+                        break;
+                    case "all":
+                        ConfigureRabbitMQ(services, eiffelToolkitConfig);
+                        ConfigureGraphQL(services, eiffelToolkitConfig);
+                        break;
                 }
 
                 services.AddScoped(provider =>
                 {
-                    var graphQLDistributor = provider.GetService<IGraphQLDistributor>();
-                    var rabbitMQDistributor = provider.GetService<IRabbitMQDistributor>();
-                    var schemaValidator = provider.GetService<SchemaValidator>();
-
-                    return new EiffelEventToolkit(graphQLDistributor, rabbitMQDistributor, schemaValidator);
+                    var schemaValidator = provider.GetRequiredService<SchemaValidator>();
+                    if (string.IsNullOrEmpty(toolkitTarget))
+                    {
+                        return new EiffelEventToolkit(schemaValidator);
+                    }
+                    else
+                    {
+                        var graphQLDistributor = provider.GetService<IGraphQLDistributor>();
+                        var rabbitMQDistributor = provider.GetService<IRabbitMQDistributor>();
+                        return new EiffelEventToolkit(schemaValidator, graphQLDistributor, rabbitMQDistributor);
+                    }
                 });
             }
             catch (Exception ex)

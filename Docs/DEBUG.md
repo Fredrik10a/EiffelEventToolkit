@@ -1,21 +1,36 @@
 # Debug Guide
 
-This guide helps developers set up and debug the `EiffelEventToolkit` project by using the `EiffelEventToolkit.Debug` console application as a testing environment.
+This guide helps developers set up and debug the `EiffelEventToolkit` project using the `EiffelEventToolkit.Debug` console application as a local testing environment.
 
-To setup a local debug Environment use the `compose.yml` file which have a local RabbitMQ and Logstash instance defined.
+The debug application simulates the publishing of Eiffel events to a locally hosted RabbitMQ and Logstash instance defined in the `compose.yml` file.
 
-## 1. Start Docker
+---
 
-```sh
+## 1. Start Docker Services
+
+Navigate to the debug project and start the Docker environment:
+
+```bash
 cd EiffelEventToolkit.Debug
-
 docker compose up
 ```
 
-Verify that both RabbitMQ and Logstash started successfuly, you could need to create the Exchange and or the queue manually via the Localhost RabbitMQ UI http://localhost:15672/#/
+Ensure that both **RabbitMQ** and **Logstash** containers have started successfully.  
+You may need to manually create the **exchange** and/or **queue** via the RabbitMQ Management UI:  
+[http://localhost:15672/#/](http://localhost:15672/#/)
 
-The Debug Console APP use a Docker RabbitMQ and Logstash instance for message management. The APP simulates a transmission and could be observed in the Console of the Logstash instance.
+The debug console application communicates with the local RabbitMQ and Logstash instances running in Docker.  
+It simulates event publishing, and the resulting messages can be observed in the **Logstash container logs**.
 
-## 2. Start the project
+---
 
-The easiest is to build and start a debug session in the Visual Studio UI. Before starting the Debug session, be sure to define relevant settings within the appsettings.json file.
+## 2. Start the Project
+
+The recommended way to start the project is by launching a debug session using **Visual Studio**:
+
+1. Open the `EiffelEventToolkit.Debug` project.
+2. Build the solution to restore dependencies and verify configurations.
+3. Ensure that the `appsettings.json` file contains correct RabbitMQ settings (host, port, user, password, vhost).
+4. Start the debugger (`F5`) to simulate event publishing.
+
+> 🔧 Tip: You can override settings via environment variables if needed for testing multiple configurations.

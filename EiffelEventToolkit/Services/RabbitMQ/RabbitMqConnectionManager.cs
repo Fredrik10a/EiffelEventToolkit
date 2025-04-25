@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using RabbitMQ.Client;
 
@@ -6,6 +7,7 @@ namespace Eiffel.Services.RabbitMQ
 {
     public class RabbitMqConnectionManager : IDisposable
     {
+        private CancellationTokenSource _cts = new CancellationTokenSource();
         private readonly ConnectionFactory _connectionFactory;
         private IConnection _connection;
         private bool _disposed;
@@ -52,7 +54,7 @@ namespace Eiffel.Services.RabbitMQ
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Failed to connect to RabbitMQ: {ex.Message}");
-                    Reconnect();
+                    _ = ReconnectAsync(); // fire-and-forget
                 }
             }
         }
@@ -60,28 +62,37 @@ namespace Eiffel.Services.RabbitMQ
         private void OnConnectionShutdown(object sender, ShutdownEventArgs e)
         {
             Console.WriteLine("RabbitMQ connection was shutdown, trying to reconnect...");
-            Reconnect();
+            _ = ReconnectAsync(); // fire-and-forget
         }
 
-        private void Reconnect()
+        private async Task ReconnectAsync()
         {
-            int delay = 10000; // Start with a 10-second delay
-            while (true)
+            int delay = 10000; // Start with 10 seconds
+            const int maxDelay = 240000; // 4 minutes = 240,000 ms
+            while (!_cts.IsCancellationRequested)
             {
                 try
                 {
-                    Connect();
-                    if (_connection.IsOpen)
+                    Connect(); // Try to connect
+                    if (_connection?.IsOpen == true)
                     {
                         Console.WriteLine("Reconnected to RabbitMQ.");
-                        break;
+                        break; // stop retrying
                     }
                 }
                 catch
                 {
-                    Console.WriteLine("Retrying RabbitMQ connection...");
-                    Task.Delay(delay).Wait();
-                    delay = Math.Min(120000, delay * 2); // Exponential backoff up to 2 minutes (120,000 ms)
+                    Console.WriteLine($"Retrying RabbitMQ connection in {delay / 1000} seconds...");
+                    try
+                    {
+                        await Task.Delay(delay, _cts.Token);
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        // Cancel requested — exit early
+                        break;
+                    }
+                    delay = Math.Min(maxDelay, delay * 2); // Exponential backoff, up to 4 mins
                 }
             }
         }
@@ -90,6 +101,8 @@ namespace Eiffel.Services.RabbitMQ
         {
             if (_disposed) return;
             _disposed = true;
+            _cts.Cancel();
+            _cts.Dispose();
             _connection?.Dispose();
         }
     }
