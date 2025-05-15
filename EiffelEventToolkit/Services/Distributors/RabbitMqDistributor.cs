@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using RabbitMQ.Client;
 using Eiffel.Interfaces;
 using Eiffel.Services.RabbitMQ;
+using System.Threading;
 
 namespace Eiffel.Services.Distributors
 {
@@ -17,31 +18,34 @@ namespace Eiffel.Services.Distributors
             _connectionManager = connectionManager;
         }
 
-        public Task<(bool Verdict, string Message)> ProcessEiffelMessageAsync(object message, string exchange, string routingKey)
+        public async Task<(bool Verdict, string Message)> ProcessEiffelMessageAsync(object message, string exchange, string routingKey)
         {
             var success = false;
             var resultMessage = "Failed to send Eiffel message.";
 
             try
             {
-                using (var channel = _connectionManager.GetChannel())
+                var channel = await _connectionManager.GetChannelAsync().ConfigureAwait(false);
+                // await the channel from your async connection manager
+                using (channel)
                 {
-                    channel.ConfirmSelect();
-
+                    var publishCts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
                     var serialized = JsonConvert.SerializeObject(message);
                     var messageBody = Encoding.UTF8.GetBytes(serialized);
 
-                    var properties = channel.CreateBasicProperties();
-                    properties.DeliveryMode = 2; // Persistent
-
-                    channel.BasicPublish(exchange, routingKey, properties, messageBody);
-
-                    // Timeout 20 seconds for confirmation
-                    bool confirmed = channel.WaitForConfirms(TimeSpan.FromSeconds(20));
-                    if (!confirmed)
+                    var properties = new BasicProperties
                     {
-                        throw new Exception($"RabbitMQ did not confirm message within 20 seconds. Exchange: {exchange}, RoutingKey: {routingKey}");
-                    }
+                        DeliveryMode = (DeliveryModes)2
+                    };
+
+                    await channel.BasicPublishAsync(
+                        exchange,
+                        routingKey,
+                        mandatory: false,
+                        basicProperties: properties,
+                        body: messageBody,
+                        cancellationToken: publishCts.Token
+                    ).ConfigureAwait(false);
 
                     success = true;
                     resultMessage = "Message published and confirmed by RabbitMQ.";
@@ -52,7 +56,7 @@ namespace Eiffel.Services.Distributors
                 resultMessage = $"Error publishing message to RabbitMQ: {ex.Message}";
             }
 
-            return Task.FromResult((success, resultMessage));
+            return await Task.FromResult((success, resultMessage));
         }
     }
 }
