@@ -3,7 +3,7 @@
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
 		<PackageId>EiffelEventToolkit</PackageId>
-		<Version>1.1.0</Version>
+		<Version>1.1.1</Version>
 		<Authors>Fredrik Ellis</Authors>
 		<Description>.NET Standard 2.0 NuGet for managing Eiffel event messages</Description>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
